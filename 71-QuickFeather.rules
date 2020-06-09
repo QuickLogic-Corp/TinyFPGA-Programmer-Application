@@ -1,0 +1,18 @@
+# udev rules for QuickFeather in serial mode for Ubuntu/Linux environment
+# copy this file to /etc/udev/rules.d and reload rules using following commands
+# $ sudo cp 71-QuickFeather.rules /etc/udev/rules.d
+# $ sudo udevadm control --reload-rules
+# $ sudo systemctl restart ModemManager.service
+#
+# 1d50:6130 QUickFeather in serial mode
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6130", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6130", ENV{ID_MM_TTY_BLACKLIST}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6130", ENV{MTP_NO_PROBE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6130", ENV{ID_MM_PORT_IGNORE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6130", ENV{ID_MM_TTY_MANUAL_SCAN_ONLY}="1"
+# 1d50:6140 QUickFeather in serial mode
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6140", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6140", ENV{ID_MM_TTY_BLACKLIST}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6140", ENV{MTP_NO_PROBE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6140", ENV{ID_MM_PORT_IGNORE}="1"
+ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6140", ENV{ID_MM_TTY_MANUAL_SCAN_ONLY}="1"
