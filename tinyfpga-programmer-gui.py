@@ -475,7 +475,12 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         m4appname = args.mfgpkg + "/qf_helloworldsw.bin"
         args.m4app = True
     else:
-        m4appname = args.m4app.name
+        if args.bootloader:
+            bootloadername = args.bootloader.name
+        if args.bootfpga:
+            bootfpganame = args.bootfpga.name
+        if args.m4app:
+            m4appname = args.m4app.name
         
     ########################################
     ## Set up adapter
