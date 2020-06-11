@@ -75,7 +75,7 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
     def get_file_extensions(self):
         return ('.hex', '.bin')
 
-    def program(self, filename, progress, description, checkrev=False, update=False):
+    def program(self, filename, progress, description="", checkrev=False, update=False):
         global max_progress
 
         with serial.Serial(self.port[0], 115200, timeout=20, writeTimeout=20) as ser:

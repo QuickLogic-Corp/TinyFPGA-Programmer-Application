@@ -15,9 +15,7 @@ class TinyFPGAQ(object):
     def is_bootloader_active(self):
         time.sleep(0.1)
         for i in range(6):
-            print ("1")
             self.wake()
-            print ("2")
             time.sleep(0.001)
             self.read(0, 16)
             time.sleep(0.001)
