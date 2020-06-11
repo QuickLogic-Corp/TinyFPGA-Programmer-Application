@@ -533,7 +533,8 @@ else:
     ##
     ################################################################################
     ################################################################################
-
+    print("GUI mode disabled: use --help to get help on CLI mode")
+    exit()
     from tkinter import *
     from tkinter.ttk import *
     import tkinter.filedialog as tkFileDialog
