@@ -39,7 +39,23 @@ optional arguments:
   --update              program flash only if CRC mismatch (not up-to-date)
   --mfgpkg qf_mfgpkg/   directory containing all necessary binaries
   ```
-The programmer allows you to specify the port using the *--port port-name* option.  The form of *port-name* varies depending on the system: COM## on PC/Windows, /dev/ttyS## on PC/wsl2/Ubuntu18, /dev/ttyACM# on PC/Ubuntu18.
+The programmer allows you to specify various options:
+* The *--port port-name* option is used to tell the programmer which serial port the QuickFeather board is connected to. The form of *port-name* varies depending on the system: 
+   * COM## on PC/Windows
+   * /dev/ttyS## on PC/wsl1/Ubuntu18 (where the ## is the same as the COM## shown by devcie manager)
+   * /dev/ttyACM# on PC/Ubuntu18
+ * The *--m4app app.bin* tells the programmer to program the file *app.bin* as the m4 application -- this is the common case
+ * The *--reset* option tells the programm to reset the board, which will result in the bootloader being restarted, and if the user button is not pressed, the bootloader will then laod and start the most recent m4app.
+  * Example: *qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --reset* will program the m4app with qf_helloworldsw and then run it
+ * The *--crc* option simples prints the crc values for each of binaries that are programmed into the flash memory
+ * The *--checkrev* option compares the crc for a binary specified as an option to the binary file progammed into the flash
+  * Example: *qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --checkrev* will compare the crc for file output/bin/qf_helloworldsw.bin with the crc for the binary programmed into the m4app location of the flash memory
+* The *--update* option causes the progammer to check the crc of any specified binary against the crc of the binary progammed into the flash, and only programmer the specified binary if it the crc is different
+
+**Danger Zone**
+* The *--bootloader boot.bin* option tells the programmer to program the file *boot.bin* as the bootloader application. **If the programming fails for any reason, or the boot.bin file doesn't work as expected the QuickFeather will become non-functional and only recoverable by using J-LINK**
+* The *--bootfpga fpga.bin* option tells the programmer to program the file *fpga.bin* as the fpga image for the bootloader. **If the programming fails for any reason, or the fpga.bin file doesn't work as expected the QuickFeather will become non-functional and only recoverable by using J-LINK**
+* the *--mfgpkg mfgpkg/* option can be used to update all of the QuickFeather firmware or restore it to the factory delivered state.  The programmer expects the *mfgpkg/* directory will contain qf_bootloader.bin, qf_bootfpga.bin and qf_helloworldsw.bin.  The recommended update method is to use the --update option with the --mfgpkg option
 
 
 ## Flash memory map
