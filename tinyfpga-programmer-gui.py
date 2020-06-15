@@ -78,7 +78,7 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
     def program(self, filename, progress, description="", checkrev=False, update=False):
         global max_progress
 
-        with serial.Serial(self.port[0], 115200, timeout=20, writeTimeout=20) as ser:
+        with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
             fpga = TinyFPGAQ(ser, progress)
 
             (addr, bitstream) = fpga.slurp(filename)

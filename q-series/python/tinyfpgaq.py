@@ -62,8 +62,11 @@ class TinyFPGAQ(object):
     def read(self, addr, length, verbose=True):
         if (verbose):
             print( "FastREAD 0x0B (", length, ")")
+            print( "[                                                 ]\r[", end='', flush=True)
         data = b''
         readsofar = 0
+        chunk = length/50
+        trigger = chunk
         while length > 0:
             read_length = min(16, length)
             data += self.cmd(0x0b, addr, b'\x00', read_len=read_length)
@@ -71,8 +74,11 @@ class TinyFPGAQ(object):
             addr += read_length
             length -= read_length
             readsofar += read_length
-            if((readsofar % (10*1024)) == 0):
-              print("Completed", int(readsofar/1024),"KiB")
+            if verbose and readsofar > trigger:
+              print("X", end='', flush=True)
+              trigger += chunk
+        if verbose:
+            print("]")
         return data
 
     def write_enable(self):
@@ -200,16 +206,21 @@ class TinyFPGAQ(object):
 
     def write(self, addr, data):
         print( "Write ", len(data), " bytes")
-        cnt = 1
+        print( "[                                                 ]\r[", end='', flush=True)
+        cnt = 0
+        chunk = len(data)/50
+        trigger = chunk
         while data:
             dist_to_256_byte_boundary = 256 - (addr & 0xff)
-            write_length = min(16, len(data), dist_to_256_byte_boundary)
+            write_length = min(len(data), dist_to_256_byte_boundary)
             self._write(addr, data[:write_length])
             data = data[write_length:]
             addr += write_length
-            cnt +=1
-            if((cnt % (5*1024/16)) == 0):
-              print("Written ", int(cnt*16/1024)," KiB")
+            cnt += write_length
+            if cnt > trigger:
+              print("X", end='', flush=True)
+              trigger += chunk
+        print("]")
 
     def program(self, addr, data, what):
         self.progress("Erasing designated flash pages")
