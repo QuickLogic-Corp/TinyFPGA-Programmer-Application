@@ -2,11 +2,39 @@
 
 ## Installation
 
+To install, clone the repository and install the tinyfpgab dependancy
+```sh
+git clone --recursive https://github.com/QuickLogic-Corp/TinyFPGA-Programmer-Application.git
+pip3 install tinyfpgab
+```
+
+On Ubuntu the lsusb command should display something similar to the following:
+
+```sh
+lsusb
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 002 Device 029: ID 1d50:6140 OpenMoko, Inc.
+```
+
+If the OpenMoko device is not present (it could also have ID 1d50:6130) then run the following commands.
+
+```sh
+pip3 install apio
+apio drivers --serial-enable
+Serial drivers enabled
+Unplug and reconnect your board
+```
+
+Recommend setting up an alias to simplify programming using the editor of your choice to edit ~/.bashrc:
+
+alias qfprog="python3 ~/TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py"
+
+```sh
+source ~/.bashrc
+```
 
 ## Programming
-The tinyfpga-programmer-gui.py can run in either GUI mode or CLI mode.  GUI mode only works well on systems
-that report USB VID and PID, because the GUI uses that information to determine which serial ports are connected
-to quickfeather boards. CLI mode allows you to specify which port to use, and thus works even when the system does not
+This version of tinyfpga-programmer-gui.py is restricted to CLI mode.  CLI mode allows you to specify which port to use, and thus works even when the system does not
 report USB VID and PID.  This document focuses on CLI mode.
 
 Help is available by running with the --help parameter:
