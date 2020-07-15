@@ -8,7 +8,7 @@ git clone --recursive https://github.com/QuickLogic-Corp/TinyFPGA-Programmer-App
 pip3 install tinyfpgab
 ```
 
-On Ubuntu the lsusb command should display something similar to the following:
+On native Ubuntu the lsusb command should display something similar to the following:
 
 ```sh
 lsusb
@@ -70,7 +70,7 @@ optional arguments:
 The programmer allows you to specify various options:
 * The *--port port-name* option is used to tell the programmer which serial port the QuickFeather board is connected to. The form of *port-name* varies depending on the system: 
    * COM## on PC/Windows
-   * /dev/ttyS## on PC/wsl1/Ubuntu18 (where the ## is the same as the COM## shown by devcie manager)
+   * /dev/ttyS## on PC/wsl1/Ubuntu18 (where the ## is the same as the COM## shown by device manager under Windows)
    * /dev/ttyACM# on PC/Ubuntu18
  * The *--m4app app.bin* tells the programmer to program the file *app.bin* as the m4 application -- this is the common case
  * The *--reset* option tells the programm to reset the board, which will result in the bootloader being restarted, and if the user button is not pressed, the bootloader will then laod and start the most recent m4app.
