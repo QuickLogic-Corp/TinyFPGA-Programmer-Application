@@ -75,6 +75,27 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
     def get_file_extensions(self):
         return ('.hex', '.bin')
 
+    def reset_meta(self, image_index, progress, description="", checkrev=False, update=False):
+        global max_progress
+
+        with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            crc32 = 0xFFFFFFFF
+            meta_array = bytearray(crc32.to_bytes(4,'little'))
+            bitstream_size = 0xFFFFFFFF
+            meta_array.extend(bitstream_size.to_bytes(4,'little'))
+
+            meta_addr = image_address[image_index][2]
+            meta_bitstream = bytes(meta_array)
+
+            try:
+                print ("resetting metadata")
+                fpga.program_bitstream(meta_addr, meta_bitstream, "metadata")
+                #print("Not programming metadata");
+            except:
+                program_failure = True
+                traceback.print_exc()
+
     def program(self, filename, progress, description="", checkrev=False, update=False):
         global max_progress
 
@@ -90,11 +111,11 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             #print("QCrc32 =", hex(qcrc32))
             crc32 = qcrc32
             
-            crc_array = bytearray(crc32.to_bytes(4,'little'))
+            meta_array = bytearray(crc32.to_bytes(4,'little'))
             bitstream_size = len(bitstream)
-            crc_array.extend(bitstream_size.to_bytes(4,'little'))
-            #crc_array.extend(bytes(b"\0"*(4096-8)))
-            #print("CRC32 = ", bytes(crc_array))
+            meta_array.extend(bitstream_size.to_bytes(4,'little'))
+            #meta_array.extend(bytes(b"\0"*(4096-8)))
+            #print("META = ", bytes(meta_array))
 
             
             #get the image type selection and look-up the address, size and metadata address
@@ -105,7 +126,7 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             addr = image_address[index][0]
             max_size = image_address[index][1]
             meta_addr = image_address[index][2]
-            meta_bitstream = bytes(crc_array)
+            meta_bitstream = bytes(meta_array)
             
             if(bitstream_size > max_size):
                 print("Error: The file size", bitstream_size, "exceeds max size", max_size, "for the selected image")
@@ -199,6 +220,8 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             print("boot fpga :", binascii.hexlify(crc))
             crc = fpga.read(image_address[4][2], 8, False)
             print("M4 app    :", binascii.hexlify(crc))
+            crc = fpga.read(image_address[2][2], 8, False)
+            print("app fpga  :", binascii.hexlify(crc))
 
         
             
@@ -349,6 +372,12 @@ parser.add_argument(
         help='m4 application program'
     )
 parser.add_argument(
+        "--appfpga",
+        type=argparse.FileType('r'),
+        metavar='appfpga.bin',
+        help='application FPGA binary'
+    )
+parser.add_argument(
         "--bootloader",
         "--bl",
         type=argparse.FileType('r'),
@@ -395,7 +424,7 @@ parser.add_argument(
     )
 args = parser.parse_args()
 
-if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or args.mfgpkg or args.checkrev or --args.update:
+if args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.crc or args.mfgpkg or args.checkrev or --args.update:
     ################################################################################
     ################################################################################
     ##
@@ -474,6 +503,8 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         args.bootfpga = True
         m4appname = args.mfgpkg + "/qf_helloworldsw.bin"
         args.m4app = True
+        appfpganame = ""
+        args.appfpga = False
     else:
         if args.bootloader:
             bootloadername = args.bootloader.name
@@ -481,6 +512,8 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
             bootfpganame = args.bootfpga.name
         if args.m4app:
             m4appname = args.m4app.name
+        if args.appfpga:
+            appfpganame = args.appfpga.name
         
     ########################################
     ## Set up adapter
@@ -494,7 +527,26 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
     if args.crc:
         adapter = tinyfpga_adapters[tinyfpga_ports[0]]
         adapter.printCRCs()
-        
+
+    ################################################
+    ## We don't (yet) support both m4app and appfpga
+    ################################################
+    if (args.m4app and args.appfpga):
+        print("programming both m4app and appfpga is not (yet) supported.")
+        print("use either one of of m4app or appfpga.")
+        exit()
+
+    ########################################
+    ## See if wants to program appfpga
+    ########################################
+    if args.appfpga:
+        image_index = 2 # point to App FPGA image
+        #print("Programming m4 application with ", m4appname)
+        adapter.program(appfpganame, progress, "Programming application FPGA with ", args.checkrev, args.update)
+        # also ensure to reset the metadata of m4app, so BL will know to load appfpga only
+        m4app_image_index = 4
+        adapter.reset_meta(m4app_image_index, progress, "Resetting metadata of M4 Application", args.checkrev, args.update)
+
     ########################################
     ## See if wants to program m4app
     ########################################
@@ -502,6 +554,11 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         image_index = 4 # point to M4 App image
         #print("Programming m4 application with ", m4appname)
         adapter.program(m4appname, progress, "Programming m4 application with ", args.checkrev, args.update)
+        # also ensure to reset the metadata of appfpga, so BL will know to load m4app only
+        appfpga_image_index = 2
+        adapter.reset_meta(appfpga_image_index, progress, "Resetting metadata of M4 Application", args.checkrev, args.update)
+
+
     ########################################
     ## See if wants to program bootloader
     ########################################
