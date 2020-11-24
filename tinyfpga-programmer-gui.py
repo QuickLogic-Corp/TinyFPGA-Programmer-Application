@@ -543,8 +543,8 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ]
     image_address = [
         #[address, size , metadata address ] 0xFFFFFF is invalid
-        [0x000000, 0x010000, 0x014000], #"Bootloader - 0x000000 to 0x010000",
-        [0x020000, 0x020000, 0x01F000], #"USB FPGA   - 0x020000 to 0x03FFFF",
+        [0x000000, 0x010000, 0x01F000], #"Bootloader - 0x000000 to 0x010000",
+        [0x020000, 0x020000, 0x010000], #"USB FPGA   - 0x020000 to 0x03FFFF",
         [0x040000, 0x020000, 0x011000], #"App FPGA   - 0x040000 to 0x05FFFF",
         [0x060000, 0x020000, 0x012000], #"App FFE    - 0x060000 to 0x07FFFF",
         [0x080000, 0x06E000, 0x013000], #"M4 App     - 0x080000 to 0x0FFFFF"
@@ -639,7 +639,6 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     #################################################################
     ## See if specified operation mode : AFTER all images are flashed
     #################################################################
-    print(args.mode)
     if args.mode:
         # if only --mode is passed in, user wants to read the mode
         if(args.mode == "read"):
