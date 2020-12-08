@@ -39,7 +39,7 @@ Installation
    | You should see:
 
    ::
-   
+
      Serial drivers enabled
      Unplug and reconnect your board
    
@@ -69,6 +69,8 @@ Programming
 | This needs to be first flashed using the programmer application to ensure support for load of the appfpga binary and the operating-mode spec (detailed below).
 | :code:`qfprog --port /dev/ttyX --bootloader /path/to/latest/qorc-sdk/qf_bootloader.bin --mode m4`
 |
+| If the original bootloader is continued to be used, the :code:`--mode` and the :code:`--appfpga` options will have no effect.
+| The (original)bootloader will always try to load the m4app binary only.
 
 Help is available by running with the --help parameter:
 
