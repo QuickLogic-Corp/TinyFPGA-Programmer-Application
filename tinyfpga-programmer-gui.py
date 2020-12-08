@@ -75,6 +75,69 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
     def get_file_extensions(self):
         return ('.hex', '.bin')
 
+    def get_image_info(self, image_index):
+        with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+
+            meta_addr = image_address[image_index][2]
+            read_meta = bytearray(fpga.read(meta_addr, 12, False))
+
+            read_image_info = read_meta[-4:]
+
+            return read_image_info
+
+    def set_image_info(self, image_index, image_info, progress, description="", checkrev=False, update=False):
+        with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            #convert image_info to bytearray
+            image_info_bytearray = bytearray(image_info)            
+            
+            # rmw needed, read metadata first
+            meta_addr = image_address[image_index][2]
+            read_meta = bytearray(fpga.read(meta_addr, 12, False))
+            
+            # check the last 4 bytes (image_info) in the metadata
+            read_image_info = read_meta[-4:]
+            
+            # if they are already the same as what we want to write, nothing to do
+            if(image_info_bytearray == read_image_info):
+                print("image_info is already set correctly, not writing again")
+            else:
+                # set image_info into metadata, replace last 4 bytes with new image_info
+                read_meta[-4:] = image_info
+                
+                # write metadata
+                meta_bitstream = bytes(read_meta)
+                try:
+                    print ("writing new image_info to metadata")
+                    fpga.program_bitstream(meta_addr, meta_bitstream, "metadata")
+                    #print("Not programming metadata");
+                except:
+                    program_failure = True
+                    traceback.print_exc()
+
+
+    def reset_meta(self, image_index, progress, description="", checkrev=False, update=False):
+        global max_progress
+
+        with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            crc32 = 0xFFFFFFFF
+            meta_array = bytearray(crc32.to_bytes(4,'little'))
+            bitstream_size = 0xFFFFFFFF
+            meta_array.extend(bitstream_size.to_bytes(4,'little'))
+
+            meta_addr = image_address[image_index][2]
+            meta_bitstream = bytes(meta_array)
+
+            try:
+                print ("resetting metadata")
+                fpga.program_bitstream(meta_addr, meta_bitstream, "metadata")
+                #print("Not programming metadata");
+            except:
+                program_failure = True
+                traceback.print_exc()
+
     def program(self, filename, progress, description="", checkrev=False, update=False):
         global max_progress
 
@@ -90,11 +153,11 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             #print("QCrc32 =", hex(qcrc32))
             crc32 = qcrc32
             
-            crc_array = bytearray(crc32.to_bytes(4,'little'))
+            meta_array = bytearray(crc32.to_bytes(4,'little'))
             bitstream_size = len(bitstream)
-            crc_array.extend(bitstream_size.to_bytes(4,'little'))
-            #crc_array.extend(bytes(b"\0"*(4096-8)))
-            #print("CRC32 = ", bytes(crc_array))
+            meta_array.extend(bitstream_size.to_bytes(4,'little'))
+            #meta_array.extend(bytes(b"\0"*(4096-8)))
+            #print("META = ", bytes(meta_array))
 
             
             #get the image type selection and look-up the address, size and metadata address
@@ -105,7 +168,7 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             addr = image_address[index][0]
             max_size = image_address[index][1]
             meta_addr = image_address[index][2]
-            meta_bitstream = bytes(crc_array)
+            meta_bitstream = bytes(meta_array)
             
             if(bitstream_size > max_size):
                 print("Error: The file size", bitstream_size, "exceeds max size", max_size, "for the selected image")
@@ -199,6 +262,8 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             print("boot fpga :", binascii.hexlify(crc))
             crc = fpga.read(image_address[4][2], 8, False)
             print("M4 app    :", binascii.hexlify(crc))
+            crc = fpga.read(image_address[2][2], 8, False)
+            print("app fpga  :", binascii.hexlify(crc))
 
         
             
@@ -342,11 +407,32 @@ class TinyFPGAASeries(ProgrammerHardwareAdapter):
 ## Global :( variables ##
 image_index = -1    # -1 says get from GUI
 parser = argparse.ArgumentParser()
+# ensure that the mode is always passed in to prevent confusing use cases.
+# user may want to change mode from fpga-m4 to m4 but forgets mode
+# then BL will still be trying to load fpga
+# and more such scenarios
+parser.add_argument(
+        "--mode",
+        action="store",
+        nargs="?",
+        const="read",
+        required=True,
+        type=str,
+        #metavar='ffe-fpga-m4',
+        metavar='fpga-m4',
+        help='operation mode - m4/fpga/fpga-m4'
+    )
 parser.add_argument(
         "--m4app",
         type=argparse.FileType('r'),
         metavar='app.bin',
         help='m4 application program'
+    )
+parser.add_argument(
+        "--appfpga",
+        type=argparse.FileType('r'),
+        metavar='appfpga.bin',
+        help='application FPGA binary'
     )
 parser.add_argument(
         "--bootloader",
@@ -395,7 +481,7 @@ parser.add_argument(
     )
 args = parser.parse_args()
 
-if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or args.mfgpkg or args.checkrev or --args.update:
+if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.crc or args.mfgpkg or args.checkrev or --args.update:
     ################################################################################
     ################################################################################
     ##
@@ -457,13 +543,33 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
     ]
     image_address = [
         #[address, size , metadata address ] 0xFFFFFF is invalid
-        [0x000000, 0x010000, 0x014000], #"Bootloader - 0x000000 to 0x010000",
+        [0x000000, 0x010000, 0x01F000], #"Bootloader - 0x000000 to 0x010000",
         [0x020000, 0x020000, 0x010000], #"USB FPGA   - 0x020000 to 0x03FFFF",
         [0x040000, 0x020000, 0x011000], #"App FPGA   - 0x040000 to 0x05FFFF",
         [0x060000, 0x020000, 0x012000], #"App FFE    - 0x060000 to 0x07FFFF",
         [0x080000, 0x06E000, 0x013000], #"M4 App     - 0x080000 to 0x0FFFFF"
     ]
-    
+    IMAGE_INFO_ACTIVE_TRUE = 0x03
+    IMAGE_INFO_ACTIVE_FALSE = 0xFF
+
+    IMAGE_INFO_TYPE_M4 = 0x01
+    IMAGE_INFO_TYPE_FFE = 0x02
+    IMAGE_INFO_TYPE_FPGA = 0x03
+    IMAGE_INFO_TYPE_FS = 0x04
+
+    IMAGE_INFO_SUBTYPE_BOOT = 0x01
+    IMAGE_INFO_SUBTYPE_APP = 0x02
+    IMAGE_INFO_SUBTYPE_OTA = 0x03    
+    IMAGE_INFO_SUBTYPE_FS_FAT = 0x20    
+    image_info = [
+         #[active, type, subtype, reserved] 0xFF is invalid
+        [IMAGE_INFO_ACTIVE_TRUE,  IMAGE_INFO_TYPE_M4,   IMAGE_INFO_SUBTYPE_BOOT,    0xFF],
+        [IMAGE_INFO_ACTIVE_TRUE,  IMAGE_INFO_TYPE_FPGA, IMAGE_INFO_SUBTYPE_BOOT,    0xFF],
+        [IMAGE_INFO_ACTIVE_FALSE, IMAGE_INFO_TYPE_FPGA, IMAGE_INFO_SUBTYPE_APP,     0xFF],
+        [IMAGE_INFO_ACTIVE_FALSE, IMAGE_INFO_TYPE_FFE,  IMAGE_INFO_SUBTYPE_APP,     0xFF],
+        [IMAGE_INFO_ACTIVE_FALSE, IMAGE_INFO_TYPE_M4,   IMAGE_INFO_SUBTYPE_APP,     0xFF]
+    ]
+
     ########################################
     ## If specified mfgpkg, populate names
     ########################################
@@ -474,6 +580,8 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         args.bootfpga = True
         m4appname = args.mfgpkg + "/qf_helloworldsw.bin"
         args.m4app = True
+        appfpganame = ""
+        args.appfpga = False
     else:
         if args.bootloader:
             bootloadername = args.bootloader.name
@@ -481,6 +589,8 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
             bootfpganame = args.bootfpga.name
         if args.m4app:
             m4appname = args.m4app.name
+        if args.appfpga:
+            appfpganame = args.appfpga.name
         
     ########################################
     ## Set up adapter
@@ -494,7 +604,15 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
     if args.crc:
         adapter = tinyfpga_adapters[tinyfpga_ports[0]]
         adapter.printCRCs()
-        
+
+    ########################################
+    ## See if wants to program appfpga
+    ########################################
+    if args.appfpga:
+        image_index = 2 # point to App FPGA image
+        #print("Programming m4 application with ", m4appname)
+        adapter.program(appfpganame, progress, "Programming application FPGA with ", args.checkrev, args.update)
+
     ########################################
     ## See if wants to program m4app
     ########################################
@@ -502,6 +620,7 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         image_index = 4 # point to M4 App image
         #print("Programming m4 application with ", m4appname)
         adapter.program(m4appname, progress, "Programming m4 application with ", args.checkrev, args.update)
+
     ########################################
     ## See if wants to program bootloader
     ########################################
@@ -516,7 +635,89 @@ if args.m4app or args.bootloader or args.bootfpga or args.reset or args.crc or a
         image_index = 1 # point to FPGA image used during programming
         #print("Programming FPGA image used during programming ", bootfpganame)
         adapter.program(bootfpganame, progress, "Programming FPGA image used during programming ", args.checkrev, args.update)
-        
+
+    #################################################################
+    ## See if specified operation mode : AFTER all images are flashed
+    #################################################################
+    if args.mode:
+        # if only --mode is passed in, user wants to read the mode
+        if(args.mode == "read"):
+            mode_list = []
+            if(adapter.get_image_info(2)[0] == IMAGE_INFO_ACTIVE_TRUE):
+                mode_list.append("fpga")
+            #if(adapter.get_image_info(3)[0] == IMAGE_INFO_ACTIVE_TRUE):
+            #    mode_list.append("ffe")
+            if(adapter.get_image_info(4)[0] == IMAGE_INFO_ACTIVE_TRUE):
+                mode_list.append("m4")
+            mode_list.sort()
+            mode_str = "[" + "-".join(mode_list) + "]"            
+            print("mode:", mode_str)
+        # else, mode with arguments is passed in, user wants to set the mode
+        else:
+            # --mode m4 or --mode m4-fpga or --mode fpga-m4 or --mode fpga
+            # or --mode m4-ffe or --mode ffe-m4 ... and so on
+            mode_list = args.mode.split("-")    
+
+            # check if params passed in are all unique? use set()
+            mode_set = set(mode_list)
+            if(len(mode_set) != len(mode_list)):
+                print("error! repetition in mode argument!")
+                exit()
+
+            # check if all the components of the mode string are correct:
+            # check we have a subset of recognized components only.
+            # reference set is set of components we support : m4, fpga, ffe*
+            #ref_set = set(["m4", "fpga", "ffe"])
+            ref_set = set(["m4", "fpga"])
+            if(not set(mode_set).issubset(ref_set)):
+                print("error! unrecognized or incomplete mode argument!")
+                exit()
+
+            mode_str = "[" + "-".join(mode_set) + "]"
+            
+            print("operating mode :", mode_str)
+
+            # according to the mode selected, set the "active" flag in the corresponding images:
+            image_index_to_set_image_info = -1
+            image_info_for_image = None
+
+            # App FPGA image:
+            image_index_to_set_image_info = 2
+            image_info_for_image = image_info[image_index_to_set_image_info].copy()
+            if("fpga" in mode_set):
+                print("setting appfpga active")
+                image_info_for_image[0] = IMAGE_INFO_ACTIVE_TRUE
+            else:
+                print("setting appfpga inactive")
+                image_info_for_image[0] = IMAGE_INFO_ACTIVE_FALSE
+            #print(image_info_for_image)
+            adapter.set_image_info(image_index_to_set_image_info, image_info_for_image, progress, "setting image_info for App FPGA", args.checkrev, args.update)
+
+            # App FFE Image:
+            #image_index_to_set_image_info = 3
+            #image_info_for_image = image_info[image_index_to_set_image_info].copy()
+            #if("ffe" in mode_set):
+            #    print("setting appffe active")
+            #    image_info_for_image[0] = IMAGE_INFO_ACTIVE_TRUE
+            #else:
+            #    print("setting appffe inactive")
+            #    image_info_for_image[0] = IMAGE_INFO_ACTIVE_FALSE
+            ##print(image_info_for_image)
+            #adapter.set_image_info(image_index_to_set_image_info, image_info_for_image, progress, "setting image_info for App FFE", args.checkrev, args.update)
+
+            # M4 App Image:
+            image_index_to_set_image_info = 4
+            image_info_for_image = image_info[image_index_to_set_image_info].copy()
+            if("m4" in mode_set):
+                print("setting m4app active")
+                image_info_for_image[0] = IMAGE_INFO_ACTIVE_TRUE
+            else:
+                print("setting m4app inactive")
+                image_info_for_image[0] = IMAGE_INFO_ACTIVE_FALSE
+            #print(image_info_for_image)
+            adapter.set_image_info(image_index_to_set_image_info, image_info_for_image, progress, "setting image_info for M4 App", args.checkrev, args.update)
+
+
     ########################################
     ##            MUST BE LAST IN SEQUENCE
     ## See if wants to reset the attached board
