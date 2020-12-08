@@ -55,10 +55,11 @@ Programming
 | This version of tinyfpga-programmer-gui.py is restricted to CLI mode.  
 | CLI mode allows you to specify which port to use, and thus works even when the system does not report USB VID and PID.  
 | This document focuses on CLI mode.
+|
 
 **NOTE**
 
-| If the use-case involves loading the appfpga binary (with or without the m4app binary) which is now supported in this programmer application, then the bootloader needs to be updated on the QuickFeather.
+| **If the use-case involves loading the appfpga binary (with or without the m4app binary) which is now supported in this programmer application, then the bootloader needs to be updated on the QuickFeather first**
 | The latest version of the bootloader can be built in the qorc-sdk (qf_apps/qf_bootloader or qf_apps/qf_bootloader_uart).
 | This needs to be first flashed using the programmer application to ensure support for load of the appfpga binary and the operating-mode spec (detailed below).
 | :code:`qfprog --port /dev/ttyX --bootloader /path/to/latest/qorc-sdk/qf_bootloader.bin --mode m4`
@@ -120,18 +121,17 @@ The programmer allows you to specify various options:
   | If :code:`--mode m4` : then the bootloader will only load the m4app binary that has been flashed
   | If :code:`--mode fpga` : then the bootloader will only program the fpga using the appfpga binary that has been flashed
   | If :code:`--mode fpga-m4` : then the bootloader will program the fpga using the appfpga binary and then load the m4app binary that has been flashed
-  | **NOTE**
-  |   1. The bootloader needs to be updated first before flashing any appfpga or m4app images!
+  | **NOTE 1.** The bootloader needs to be updated first before flashing any appfpga or m4app images!
   |      Example:
   |      :code:`qfprog --port /dev/ttyX --bootloader /path/to/latest/qorc-sdk/qf_bootloader.bin --mode m4`
   |      If not, then the :code:`--mode` option has no effect, and it always acts as if :code:`--mode m4` is specified.
-  |   2. The :code:`--mode` argument is mandatory and must be always specified.
+  | **NOTE 2.** The :code:`--mode` argument is mandatory and must be always specified.
 
 - The :code:`--m4app app.bin` tells the programmer to program the file *app.bin* as the m4 application
 
 - The :code:`--appfpga appfpga.bin` tells the programmer to program the file *appfpga.bin* as the application fpga binary
 
-- | The :code:`--reset` option tells the programm to reset the board, which will result in the bootloader being restarted, and if the user button is not pressed, the bootloader will then laod and start the most recent m4app.
+- | The :code:`--reset` option tells the programmer to reset the board, which will result in the bootloader being restarted, and if the user button is not pressed, the bootloader will then laod and start the most recent m4app.
   | Example: 
   | :code:`qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --reset --mode m4`
   | will program the m4app with qf_helloworldsw and then run it
