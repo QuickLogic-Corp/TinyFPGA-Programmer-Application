@@ -35,6 +35,11 @@ Installation
 
      pip3 install apio
      apio drivers --serial-enable
+   
+   | You should see:
+
+   ::
+   
      Serial drivers enabled
      Unplug and reconnect your board
    
