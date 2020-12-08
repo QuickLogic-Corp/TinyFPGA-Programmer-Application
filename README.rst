@@ -154,4 +154,4 @@ The 5 bin files are:
 
 The flash memory map defined for q-series devices is:
 
-.. image:: qorc-flash-memory-map-addresses.png
+.. image:: qorc-flash-memory-map-addresses.svg
