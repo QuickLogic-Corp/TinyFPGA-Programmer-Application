@@ -56,6 +56,14 @@ Programming
 | CLI mode allows you to specify which port to use, and thus works even when the system does not report USB VID and PID.  
 | This document focuses on CLI mode.
 
+**NOTE**
+
+| If the use-case involves loading the appfpga binary (with or without the m4app binary) which is now supported in this programmer application, then the bootloader needs to be updated on the QuickFeather.
+| The latest version of the bootloader can be built in the qorc-sdk (qf_apps/qf_bootloader or qf_apps/qf_bootloader_uart).
+| This needs to be first flashed using the programmer application to ensure support for load of the appfpga binary and the operating-mode spec (detailed below).
+| :code:`qfprog --port /dev/ttyX --bootloader /path/to/latest/qorc-sdk/qf_bootloader.bin --mode m4`
+|
+
 Help is available by running with the --help parameter:
 
 ::
@@ -70,7 +78,8 @@ or, if you have already setup the alias
 
 ::
 
-    usage: tinyfpga-programmer-gui.py [-h] [--m4app app.bin]
+    usage: tinyfpga-programmer-gui.py [-h] --mode [fpga-m4] [--m4app app.bin]
+                                    [--appfpga appfpga.bin]
                                     [--bootloader boot.bin]
                                     [--bootfpga fpga.bin] [--reset]
                                     [--port /dev/ttySx] [--crc] [--checkrev]
@@ -78,7 +87,10 @@ or, if you have already setup the alias
 
     optional arguments:
     -h, --help            show this help message and exit
+    --mode [fpga-m4]      operation mode - m4/fpga/fpga-m4
     --m4app app.bin       m4 application program
+    --appfpga appfpga.bin
+                            application FPGA binary
     --bootloader boot.bin, --bl boot.bin
                             m4 bootloader program WARNING: do you really need to
                             do this? It is not common, and getting it wrong can
@@ -92,7 +104,7 @@ or, if you have already setup the alias
     --checkrev            check if CRC matches (flash is up-to-date)
     --update              program flash only if CRC mismatch (not up-to-date)
     --mfgpkg qf_mfgpkg/   directory containing all necessary binaries
-    
+
 
 The programmer allows you to specify various options:
 
@@ -100,19 +112,35 @@ The programmer allows you to specify various options:
   | :code:`COM##` on PC/Windows
   | :code:`/dev/ttyS##` on PC/wsl1/Ubuntu18+ (where the ## is the same as the COM## shown by device manager under Windows)
   | :code:`/dev/ttyACM#` on PC/Ubuntu18+
+  |
 
-- The :code:`--m4app app.bin` tells the programmer to program the file *app.bin* as the m4 application -- this is the common case
+- | The :code:`--mode [operating-mode]` tells the programmer to set the "operating mode" for the bootloader to use.
+  | The options currently supported are: :code:`--mode m4`, :code:`--mode fpga`, :code:`--mode fpga-m4`
+  | This is used to let the bootloader identify the use case, and load the images accordingly.
+  | If :code:`--mode m4` : then the bootloader will only load the m4app binary that has been flashed
+  | If :code:`--mode fpga` : then the bootloader will only program the fpga using the appfpga binary that has been flashed
+  | If :code:`--mode fpga-m4` : then the bootloader will program the fpga using the appfpga binary and then load the m4app binary that has been flashed
+  | **NOTE**
+  |   1. The bootloader needs to be updated first before flashing any appfpga or m4app images!
+  |      Example:
+  |      :code:`qfprog --port /dev/ttyX --bootloader /path/to/latest/qorc-sdk/qf_bootloader.bin --mode m4`
+  |      If not, then the :code:`--mode` option has no effect, and it always acts as if :code:`--mode m4` is specified.
+  |   2. The :code:`--mode` argument is mandatory and must be always specified.
+
+- The :code:`--m4app app.bin` tells the programmer to program the file *app.bin* as the m4 application
+
+- The :code:`--appfpga appfpga.bin` tells the programmer to program the file *appfpga.bin* as the application fpga binary
 
 - | The :code:`--reset` option tells the programm to reset the board, which will result in the bootloader being restarted, and if the user button is not pressed, the bootloader will then laod and start the most recent m4app.
   | Example: 
-  | :code:`qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --reset`
+  | :code:`qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --reset --mode m4`
   | will program the m4app with qf_helloworldsw and then run it
 
 - The :code:`--crc` option simply prints the crc values for each of binaries that are programmed into the flash memory
 
 - | The :code:`--checkrev` option compares the crc for a binary specified as an option to the binary file progammed into the flash
   | Example: 
-  | :code:`qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --checkrev`
+  | :code:`qfprog --port /dev/ttyS8 --m4app output/bin/qf_helloworldsw.bin --checkrev --mode m4`
   |  will compare the crc for file output/bin/qf_helloworldsw.bin with the crc for the binary programmed into the m4app location of the flash memory
 
 - The :code:`--update` option causes the progammer to check the crc of any specified binary against the crc of the binary progammed into the flash, and only programmer the specified binary if it the crc is different
@@ -148,9 +176,8 @@ The 5 bin files are:
 - appffe (for future use)
   
 | The bootloader is loaded by a reset.
-| It handles either communicating with the TinyFPGA-Programmer to load new bin files into the flash, or it loads m4 app binary and transfers control to it.
+| It handles either communicating with the TinyFPGA-Programmer to load new bin files into the flash, or it loads appfpga and/or m4app and transfers control to it.
 | The bootfpga area contains the binary for the fpga image that the bootloader uses.
-| The m4 app image is expected to contain and load any fpga image that it requires.
 
 The flash memory map defined for q-series devices is:
 
