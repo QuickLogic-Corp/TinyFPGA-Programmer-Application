@@ -6,6 +6,8 @@ Desktop application for programming TinyFPGA boards. Updated to python3 and to s
 Installation
 ------------
 
+Note: This repository uses sub-modules for some of the functionality. Using the "Download ZIP" functionality does not package these necessary sub-modules. To use this project, please follow the instatllation instructions given below.
+
 1. Clone the repository and install the tinyfpgab dependency
    ::
 
