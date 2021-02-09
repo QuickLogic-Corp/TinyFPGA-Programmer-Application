@@ -633,12 +633,9 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ## See if wants to program bootloader
     ########################################
     if args.bootloader:
-        # while flashing bootloader, mode is not really mandatory but good to have.
-        # if mode is specified, it will be used.
-        # if mode is not specified, we default to "--mode m4".
-        if (not args.mode):
-            print("warning: mode is not specified, defaulting to mode \"m4\"")
-            args.mode = "m4"
+        # while flashing bootloader, mode is not necessary.
+        # either it was already set previously, or when user flashes m4/fpga it will be set.
+        # if mode is specified here, it will be set, if not, don't bother the user.
 
         image_index = 0 # point to bootloader image
         #print("Programming bootloader with ", bootloadername)
