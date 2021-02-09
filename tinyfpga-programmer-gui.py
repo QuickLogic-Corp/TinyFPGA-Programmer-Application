@@ -637,7 +637,7 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
         # if mode is specified, it will be used.
         # if mode is not specified, we default to "--mode m4".
         if (not args.mode):
-            print("warning: defaulting to mode \"m4\"")
+            print("warning: mode is not specified, defaulting to mode \"m4\"")
             args.mode = "m4"
 
         image_index = 0 # point to bootloader image
