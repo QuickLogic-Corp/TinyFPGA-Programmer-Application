@@ -415,8 +415,7 @@ parser.add_argument(
         "--mode",
         action="store",
         nargs="?",
-        const="read",
-        required=True,
+        const="read", # send this if no args to --mode are provided, user wants to read the mode.
         type=str,
         #metavar='ffe-fpga-m4',
         metavar='fpga-m4',
@@ -609,6 +608,10 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ## See if wants to program appfpga
     ########################################
     if args.appfpga:
+        # pre-check : ensure user specifies mode
+        if (not args.mode):
+            print("error! please specify a mode with one of \"--mode [m4/fpga/fpga-m4]\"")
+            exit()
         image_index = 2 # point to App FPGA image
         #print("Programming m4 application with ", m4appname)
         adapter.program(appfpganame, progress, "Programming application FPGA with ", args.checkrev, args.update)
@@ -617,6 +620,11 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ## See if wants to program m4app
     ########################################
     if args.m4app:
+        # pre-check : ensure user specifies mode
+        if (not args.mode):
+            print("error! please specify a mode with one of \"--mode [m4/fpga/fpga-m4]\"")
+            exit()
+
         image_index = 4 # point to M4 App image
         #print("Programming m4 application with ", m4appname)
         adapter.program(m4appname, progress, "Programming m4 application with ", args.checkrev, args.update)
@@ -625,6 +633,10 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ## See if wants to program bootloader
     ########################################
     if args.bootloader:
+        # while flashing bootloader, mode is not necessary.
+        # either it was already set previously, or when user flashes m4/fpga it will be set.
+        # if mode is specified here, it will be set, if not, don't bother the user.
+
         image_index = 0 # point to bootloader image
         #print("Programming bootloader with ", bootloadername)
         adapter.program(bootloadername, progress, "Programming bootloader with ", args.checkrev, args.update)
@@ -641,7 +653,7 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     #################################################################
     if args.mode:
         # if only --mode is passed in, user wants to read the mode
-        if(args.mode == "read"):
+        if(args.mode == "read"): # due to const, this is what we get here.
             mode_list = []
             if(adapter.get_image_info(2)[0] == IMAGE_INFO_ACTIVE_TRUE):
                 mode_list.append("fpga")
