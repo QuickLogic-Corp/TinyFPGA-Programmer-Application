@@ -138,6 +138,65 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
                 program_failure = True
                 traceback.print_exc()
 
+    def raw_flash_write(self, filename, flash_addr, size, progress, description=""):
+        global max_progress
+
+        # note currently, size is ignored, we write the entire file-content into flash!!
+
+        try:
+            with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+                fpga = TinyFPGAQ(ser, progress)
+
+                print("file_path:",os.path.abspath(filename))
+
+                try:                    
+                    with open(filename, 'rb') as f:
+                        filecontent_binary = f.read()
+                        max_progress = len(filecontent_binary) * 3
+
+                        fpga.program_bitstream(flash_addr, filecontent_binary, "binary")
+
+                except IOError as e:
+                    print("Couldn't open file (%s)." %e)
+        except:
+            print("error opening serial port!!!")
+
+    def raw_flash_read(self, filename, flash_addr, size, progress, description=""):
+        global max_progress
+
+        try:
+            with serial.Serial(self.port[0], 115200, timeout=60, writeTimeout=60) as ser:
+                fpga = TinyFPGAQ(ser, progress)
+
+                # check if file exists! ask to overwrite?
+                ok_to_write = False
+
+                print("file_path:",os.path.abspath(filename))
+
+                if os.path.isfile(filename):
+                    overwrite = input('File already exists. Overwrite? y = yes, n = no\n')
+                    if overwrite.lower() == 'y':
+                        ok_to_write = True
+                    else:
+                        print("aborting, as user didn't want to overwrite!\n")
+                        return
+                else:
+                    ok_to_write = True
+
+                if(ok_to_write):
+                    
+                    read_data = fpga.read(flash_addr, size)
+
+                    try:                    
+                        with open(filename, 'wb') as f:
+                            f.write(read_data)
+                    except IOError as e:
+                        print("Couldn't open file (%s) for writing!" %e)
+                    
+        except Exception as e:
+            #print("error opening serial port!!!")
+            print(e)
+
     def program(self, filename, progress, description="", checkrev=False, update=False):
         global max_progress
 
@@ -403,7 +462,9 @@ class TinyFPGAASeries(ProgrammerHardwareAdapter):
     def exitBootloader(self):
         pass
 
-
+# enable automatic int or hex or octal input in argparse
+def auto_int(x):
+    return int(x, 0)
 ## Global :( variables ##
 image_index = -1    # -1 says get from GUI
 parser = argparse.ArgumentParser()
@@ -478,9 +539,45 @@ parser.add_argument(
         metavar='qf_mfgpkg/',
         help='directory containing all necessary binaries'
     )
+subparsers = parser.add_subparsers(dest='command', help='commands')
+raw_rw_parser = subparsers.add_parser('raw', help='raw flash rw')
+raw_rw_parser.add_argument(
+        "--addr",
+        type=auto_int,
+        required=True,
+        metavar='START_ADDRESS',
+        help='flash start address'
+    )
+raw_rw_parser.add_argument(
+        "--size",
+        type=auto_int,
+        metavar='SIZE_IN_BYTES',
+        help='size in bytes'
+    )
+raw_rw_group = raw_rw_parser.add_mutually_exclusive_group()
+raw_rw_group.add_argument(
+        "--read",
+        action="store_true",
+        help='read from flash'
+    )
+raw_rw_group.add_argument(
+        "--write",
+        action="store_true",
+        help='write to flash'
+    )
+raw_rw_parser.add_argument(
+        "--file",
+        type=str,
+        metavar='PATH_TO_FILE',
+        help='size in bytes'
+    )
 args = parser.parse_args()
 
-if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.crc or args.mfgpkg or args.checkrev or --args.update:
+#print(args)
+#print(args.command)
+
+
+if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.command or args.crc or args.mfgpkg or args.checkrev or --args.update:
     ################################################################################
     ################################################################################
     ##
@@ -568,6 +665,50 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
         [IMAGE_INFO_ACTIVE_FALSE, IMAGE_INFO_TYPE_FFE,  IMAGE_INFO_SUBTYPE_APP,     0xFF],
         [IMAGE_INFO_ACTIVE_FALSE, IMAGE_INFO_TYPE_M4,   IMAGE_INFO_SUBTYPE_APP,     0xFF]
     ]
+
+    ########################################
+    ## raw read-write flash mode?
+    ########################################
+    print(args.command)
+    if(args.command is not None):
+
+        # check the addr, size, read or write, and then the file
+        # read mode: read from flash and dump into file
+        # write mode: read from file and write into flash
+        # so, for read mode, warn for overwrite if file exists!
+
+        print("Using port ", tinyfpga_ports[0])
+        adapter = tinyfpga_adapters[tinyfpga_ports[0]]
+
+        if(args.read):
+            # to read from flash, we need: addr, size, filename to dump content into.
+            # addr is mandatory and checked
+            # filename is mandatory and checked
+            # size is mandatory but not checked, so check that
+            if(args.size is None):
+                print("Please specify the size in bytes to read from flash")
+                exit()
+            
+            adapter.raw_flash_read(filename=args.file, 
+                                    flash_addr=args.addr, 
+                                    size=args.size, 
+                                    progress=progress,
+                                    description="reading raw binary from flash")
+
+        if(args.write):
+            # to write into flash, we need: addr, filename (size is ignored today, maybe future)
+            # addr is mandatory and checked
+            # filename is mandatory and checked
+
+            adapter.raw_flash_write(filename=args.file,
+                                    flash_addr=args.addr,
+                                    size=0,
+                                    progress=progress,
+                                    description="writing raw binary into flash")
+
+    # in raw rw mode, go no further!
+    exit()
+
 
     ########################################
     ## If specified mfgpkg, populate names
