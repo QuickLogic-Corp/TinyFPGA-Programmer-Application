@@ -191,3 +191,45 @@ The 5 bin files are:
 The flash memory map defined for q-series devices is:
 
 .. image:: qorc-flash-memory-map-addresses.svg
+
+Raw Flash Read/Write Additions
+------------------------------
+
+New "subcommand" added to support this : **raw**
+
+1. **READ FROM FLASH** 
+   
+   :code:`qfprog raw --read --addr START_ADDRESS --size SIZE_IN_BYTES --file PATH_TO_FILE`
+   
+   This will read from the flash, from START_ADDRESS, a size of SIZE_IN_BYTES and write the binary content into the PATH_TO_FILE specified.
+   
+   Example: :code:`qfprog raw --read --addr 0x0 --size 0x100000 --file testread.bin`
+   
+   This will read 1MB from address 0x0 into the file testread.bin, note that the file will be saved in the dir from where you run this command.
+   
+   If the file specified already exists, the programmer will prompt whether you want to overwrite it.
+   
+   Specify :code:`y` to overwrite, anything else to cancel.
+   
+2. **WRITE TO FLASH**
+
+   Note that we expect the file from where you want the content to be written into flash, was produced using the read from flash as above.
+   
+   Any other content is not guaranteed to work.
+   
+   :code:`qfprog raw --write --addr START_ADDRESS --size SIZE_IN_BYTES --file PATH_TO_FILE`
+   
+   As of now, the :code:`--size` parameter value is **IGNORED** and the command will write the entire file content size into flash.
+   
+   This will read from the file, and write into flash at START_ADDRESS.
+   It will also read-back from flash and verify that the content was written correctly.
+   
+   Example: :code:`qfprog raw --write --addr 0x0 --size 0x100000 --file testread.bin`
+   
+   This will read from the file :code:`testread.bin` in current dir, and write the entire content into flash at address 0x0 and read-back to verify.
+   
+   The size of 0x100000 (1MB) is ignored as of now.
+   
+Simplest usage is use the read command and specify addr,size, filename.
+
+Then use the exact same command, just replace :code:`--read` with :code:`--write` to write the same content back into the same flash area (on another board for example)
