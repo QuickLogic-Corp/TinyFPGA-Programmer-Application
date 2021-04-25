@@ -159,7 +159,7 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
                 except IOError as e:
                     print("Couldn't open file (%s)." %e)
         except:
-            print("error opening serial port!!!")
+            print("error!!!")
 
     def raw_flash_read(self, filename, flash_addr, size, progress, description=""):
         global max_progress

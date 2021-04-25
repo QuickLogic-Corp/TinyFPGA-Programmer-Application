@@ -235,12 +235,13 @@ class TinyFPGAQ(object):
         self.progress("Verifying "+what)
         print("Verifying ", what)
         read_back = self.read(addr, len(data))
-
+        
         if read_back == data:
             print( "Success: read_back == data")
             self.progress("Success!")
             return True
         else:
+            print( "FAILED: read_back != write data")
             self.progress("Need to rewrite some pages...")
             quit()
 
