@@ -324,8 +324,34 @@ class TinyFPGAQSeries(ProgrammerHardwareAdapter):
             crc = fpga.read(image_address[2][2], 8, False)
             print("app fpga  :", binascii.hexlify(crc))
 
-        
+    def read_bootloader_id(self):
+        with serial.Serial(self.port[0], 115200, timeout=10, writeTimeout=10) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            print( "read_bootloader_id")
+            bootloader_id_bytes = fpga.read(addr = 0x2000FF80, 
+                                            length = 128, 
+                                            verbose=True)
             
+            #print(bootloader_id_bytes)
+            return bootloader_id_bytes
+
+    def lock_boot_area(self):
+        with serial.Serial(self.port[0], 115200, timeout=10, writeTimeout=10) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            print("lock_boot_area")
+            fpga.cmd(opcode = 0xcc, 
+                        addr=None, 
+                        data=b'\xb1', 
+                        read_len=0)
+
+    def unlock_boot_area(self):
+        with serial.Serial(self.port[0], 115200, timeout=10, writeTimeout=10) as ser:
+            fpga = TinyFPGAQ(ser, progress)
+            print("unlock_boot_area")
+            fpga.cmd(opcode = 0xcc, 
+                        addr=None, 
+                        data=b'\xb0', 
+                        read_len=0)            
 
 class TinyFPGABSeries(ProgrammerHardwareAdapter):
     def __init__(self, port):
@@ -534,6 +560,11 @@ parser.add_argument(
         help='program flash only if CRC mismatch (not up-to-date)'
     )
 parser.add_argument(
+        "--force",
+        action="store_true",
+        help='force write bootloader/bootfpga on locked devices like qomu'
+    )
+parser.add_argument(
         "--mfgpkg",
         type=str,
         metavar='qf_mfgpkg/',
@@ -569,7 +600,7 @@ raw_rw_parser.add_argument(
         "--file",
         type=str,
         metavar='PATH_TO_FILE',
-        help='size in bytes'
+        help='path to file'
     )
 args = parser.parse_args()
 
@@ -577,7 +608,7 @@ args = parser.parse_args()
 #print(args.command)
 
 
-if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.command or args.crc or args.mfgpkg or args.checkrev or --args.update:
+if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga or args.reset or args.command or args.crc or args.mfgpkg or args.checkrev or args.update or args.force:
     ################################################################################
     ################################################################################
     ##
@@ -669,7 +700,61 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ########################################
     ## raw read-write flash mode?
     ########################################
-    print(args.command)
+    #print(args.command)
+    #print(args.force)
+
+    print("Using port ", tinyfpga_ports[0])
+    adapter = tinyfpga_adapters[tinyfpga_ports[0]]
+
+    bootloader_id_bytes = adapter.read_bootloader_id()
+    #print("bl_id:", bootloader_id_bytes)
+
+    # parse the bootloader id and decide whether to send LOCK-UNLOCK
+    # commands if the user passes in --force
+    # the --force is required only for devices where bootloader is actually
+    # locked (like qomu)
+
+    device_has_locked_bootarea = False
+    bootloader_id_str = bootloader_id_bytes.decode('utf-8', errors='ignore')
+    bootloader_id_str_tokens = bootloader_id_str.split(';')
+    #print(len(bootloader_id_str_tokens))
+    #print(bootloader_id_str_tokens)
+    if(len(bootloader_id_str_tokens) == 5):
+        # we have a bootloader id encoded inside the bootloader
+        print("")
+        print("{0:>8s} : {1:s}".format("board",bootloader_id_str_tokens[0]))
+        print("{0:>8s} : {1:s}".format("app",bootloader_id_str_tokens[1]))
+        print("{0:>8s} : {1:s}".format("version",bootloader_id_str_tokens[2]))
+        print("{0:>8s} : {1:s}".format("date",bootloader_id_str_tokens[3]))
+        print("")
+        if(bootloader_id_str_tokens[0] == 'QOMU'):
+            device_has_locked_bootarea = True
+
+    else:
+        # we have no bootloader id encoded (legacy) all these bytes are
+        # 0xFF due to them being erased.
+        pass
+
+    if(args.force and device_has_locked_bootarea):
+        # if force is set,  *before* we do any writes into flash memory,
+        # send the UNLOCK command to the bootloader
+        # For locked bootloaders (like qomu) this will ensure that the 
+        # bootloader knows user really wants to write into the bootloader/bootfpga
+        # flash memory, to update it and knows the risks
+        # for unlocked bootloaders (like quickfeather) the bootloader should ignore 
+        # this command as it is an unknown command.
+
+        userresp = input("WARNING!! using --force enables writing into bootloader area, are you sure? (yes/no)")
+        if(str(userresp).strip().upper() != "YES"):
+            exit()
+
+        print("send UNLOCK command to BL")
+
+        print("Using port ", tinyfpga_ports[0])
+        adapter = tinyfpga_adapters[tinyfpga_ports[0]]
+
+        adapter.unlock_boot_area()
+
     if(args.command is not None):
 
         # check the addr, size, read or write, and then the file
@@ -699,6 +784,10 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
             # to write into flash, we need: addr, filename (size is ignored today, maybe future)
             # addr is mandatory and checked
             # filename is mandatory and checked
+            print("")
+            print("CAUTION: This device has a locked boot area.")
+            print("Use --force if you really want to update bootloader area!")
+            print("")
 
             adapter.raw_flash_write(filename=args.file,
                                     flash_addr=args.addr,
@@ -706,8 +795,20 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
                                     progress=progress,
                                     description="writing raw binary into flash")
 
-    # in raw rw mode, go no further!
-    exit()
+        # for raw mode:
+        if(args.force and device_has_locked_bootarea):
+            # if force is set,  *after* we do any writes into flash memory,
+            # send the LOCK command to the BL so it knows we are done with 
+            # the "forced" mode.
+            print("send LOCK command to BL (raw mode)")
+
+            print("Using port ", tinyfpga_ports[0])
+            adapter = tinyfpga_adapters[tinyfpga_ports[0]]
+
+            adapter.lock_boot_area()
+
+        # in raw rw mode, go no further!
+        exit()
 
 
     ########################################
@@ -778,6 +879,11 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
         # either it was already set previously, or when user flashes m4/fpga it will be set.
         # if mode is specified here, it will be set, if not, don't bother the user.
 
+        if(not args.force and device_has_locked_bootarea):
+            print("CAUTION: This device has a locked boot area.")
+            print("Use --force if you really want to update bootloader!")
+            exit()
+
         image_index = 0 # point to bootloader image
         #print("Programming bootloader with ", bootloadername)
         adapter.program(bootloadername, progress, "Programming bootloader with ", args.checkrev, args.update)
@@ -785,6 +891,12 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
     ## See if wants to program FPGA image used during programming
     ########################################
     if args.bootfpga:
+
+        if(not args.force and device_has_locked_bootarea):
+            print("CAUTION: This device has a locked boot area!")
+            print("Use --force if you really want to update bootfpga!")
+            exit()
+
         image_index = 1 # point to FPGA image used during programming
         #print("Programming FPGA image used during programming ", bootfpganame)
         adapter.program(bootfpganame, progress, "Programming FPGA image used during programming ", args.checkrev, args.update)
@@ -870,6 +982,15 @@ if args.mode or args.m4app or args.appfpga or args.bootloader or args.bootfpga o
             #print(image_info_for_image)
             adapter.set_image_info(image_index_to_set_image_info, image_info_for_image, progress, "setting image_info for M4 App", args.checkrev, args.update)
 
+
+    # MUST be after all the flash write operations are done.
+    if(args.force and device_has_locked_bootarea):
+        # if force is set,  *after* we do any writes into flash memory,
+        # send the LOCK command to the BL so it knows we are done with 
+        # the "forced" mode.
+        print("send LOCK command to BL")
+
+        adapter.lock_boot_area()
 
     ########################################
     ##            MUST BE LAST IN SEQUENCE
